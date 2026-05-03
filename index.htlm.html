@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Horarios Administradores — Megatiendas Atlántico</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --mt-blue-dark:#002b5e; --mt-blue:#003a7a; --mt-blue-light:#0055a5;
+    --mt-red:#e30613; --mt-red-dark:#b8050f; --mt-red-light:#fde8ea;
+    --mt-yellow:#ffd700; --mt-green:#00c853;
+    --mt-orange-bg:#ffe8d6; --mt-orange-text:#c2410c;
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0;
+    --slate-300:#cbd5e1; --slate-500:#64748b; --slate-600:#475569;
+    --slate-700:#334155; --slate-800:#1e293b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,var(--slate-50) 0%,#e8eef5 100%);min-height:100vh;padding:24px;display:flex;justify-content:center;color:var(--slate-800);}
+  .container{width:100%;max-width:1400px;background:white;border-radius:14px;box-shadow:0 20px 50px rgba(0,43,94,.18);border:1px solid var(--slate-200);overflow:hidden;display:flex;flex-direction:column;}
+
+  /* HEADER */
+  .header{background:linear-gradient(135deg,var(--mt-blue-dark) 0%,var(--mt-blue) 60%,var(--mt-blue-light) 100%);color:white;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;position:relative;overflow:hidden;flex-wrap:wrap;gap:12px;}
+  .header::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--mt-red) 0%,var(--mt-red-dark) 100%);}
+  .header::after{content:'';position:absolute;top:-50%;right:-10%;width:300px;height:200%;background:radial-gradient(ellipse,rgba(227,6,19,.18) 0%,transparent 70%);pointer-events:none;}
+  .header-title{position:relative;z-index:2;}
+  .header-title h1{font-size:26px;font-weight:900;font-style:italic;letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,.25);margin-bottom:6px;}
+  .header-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);backdrop-filter:blur(10px);padding:4px 12px;border-radius:4px;border:1px solid rgba(255,255,255,.2);font-size:11px;font-weight:700;letter-spacing:2px;}
+  .header-badge::before{content:'';width:6px;height:6px;background:var(--mt-red);border-radius:50%;box-shadow:0 0 10px var(--mt-red);}
+  .header-right{display:flex;gap:10px;align-items:center;position:relative;z-index:2;flex-wrap:wrap;}
+
+  .status-pill{background:rgba(255,255,255,.12);backdrop-filter:blur(10px);padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.2);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .status-dot{width:9px;height:9px;border-radius:50%;background:#4ade80;box-shadow:0 0 10px #4ade80;animation:pulse 2s infinite;}
+  .status-dot.offline{background:var(--mt-red);box-shadow:0 0 10px var(--mt-red);}
+  .status-dot.saving{background:var(--mt-yellow);box-shadow:0 0 10px var(--mt-yellow);}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.3);opacity:.7;}}
+
+  .resumen-btn{background:linear-gradient(135deg,var(--mt-red) 0%,var(--mt-red-dark) 100%);color:white;border:1px solid rgba(255,255,255,.25);padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(227,6,19,.3);}
+  .resumen-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(227,6,19,.45);}
+
+  /* AVISOS SEMANA */
+  .week-alerts{background:linear-gradient(90deg,#fff8e1 0%,#fef3c7 100%);border-bottom:1px solid #fcd34d;padding:10px 24px;display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:#78350f;font-weight:600;}
+  .week-alerts.hidden{display:none;}
+  .alert-icon{display:inline-flex;align-items:center;gap:6px;}
+  .alert-icon strong{color:#92400e;font-weight:800;}
+
+  /* NAV */
+  .week-nav{background:var(--slate-50);border-bottom:1px solid var(--slate-200);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;}
+  .nav-btn{background:white;border:1.5px solid var(--slate-300);color:var(--slate-600);font-weight:700;padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;}
+  .nav-btn:hover{border-color:var(--mt-blue-dark);color:var(--mt-blue-dark);}
+  .week-display{background:white;padding:8px 28px;border-radius:999px;border:2px solid var(--mt-blue-dark);color:var(--mt-blue-dark);font-weight:800;font-size:13px;letter-spacing:2px;text-transform:uppercase;}
+
+  /* TABLA */
+  .table-wrapper{overflow-x:auto;padding:18px;background:white;}
+  table{width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05);}
+  thead tr{background:var(--mt-blue-dark);color:white;font-size:11px;text-align:center;}
+  thead th{padding:14px 8px;font-weight:800;letter-spacing:1px;border-left:1px solid rgba(255,255,255,.1);}
+  thead th.sunday-header{background:var(--mt-red);position:relative;}
+  thead th.sunday-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--mt-red-dark);}
+  thead th.holiday-header{background:var(--mt-red);position:relative;}
+  thead th.holiday-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--mt-red-dark);}
+  thead th.comp-pend-header{background:linear-gradient(135deg,var(--mt-red-dark) 0%,var(--mt-red) 100%);font-size:10px;line-height:1.2;}
+
+  tbody td{border:1px solid var(--slate-200);text-align:center;font-size:13px;padding:0;}
+  tbody tr.row-principal{border-top:3px solid var(--slate-300);}
+  tbody tr:hover{background:var(--slate-50);}
+
+  td.store-name{background:linear-gradient(135deg,var(--slate-50) 0%,#eaf1f8 100%);font-weight:800;color:var(--mt-blue-dark);text-transform:uppercase;font-size:12px;padding:0 8px;border-left:4px solid var(--mt-blue-dark);}
+  td.role-label{font-weight:800;color:var(--slate-600);font-size:10px;letter-spacing:1.5px;background:white;padding:2px 4px;line-height:1.1;}
+  td.role-label.principal{color:var(--mt-blue-dark);}
+  td.role-label.comercial{color:var(--mt-red);}
+  td.person-name{font-weight:700;font-size:11px;line-height:1.1;color:var(--slate-800);background:white;padding:2px 4px;}
+
+  .shift-cell{position:relative;padding:0;}
+  .shift-cell input{width:100%;min-height:28px;padding:2px 4px;text-align:center;font-size:11px;font-weight:700;background:transparent;border:none;outline:none;color:inherit;font-family:inherit;text-transform:uppercase;}
+  .shift-cell input::placeholder{color:#cbd5e1;font-weight:400;}
+  .shift-cell:focus-within{box-shadow:inset 0 0 0 2px var(--mt-blue-light);z-index:5;}
+
+  .shift-menu{position:fixed;background:white;border:2px solid var(--mt-blue-dark);border-radius:8px;box-shadow:0 10px 30px rgba(0,43,94,.28);z-index:1000;min-width:150px;max-height:320px;overflow-y:auto;padding:4px;}
+  .shift-menu.hidden{display:none;}
+  .menu-item{padding:7px 12px;font-size:11px;font-weight:800;letter-spacing:.5px;cursor:pointer;color:var(--slate-700);border-radius:4px;text-align:center;}
+  .menu-item:hover{background:var(--mt-blue-dark);color:white;}
+  .menu-item.menu-clear{color:var(--mt-red);border-bottom:1px solid var(--slate-200);margin-bottom:4px;padding-bottom:8px;}
+  .menu-item.menu-clear:hover{background:var(--mt-red);color:white;}
+  .menu-item.disabled{color:#cbd5e1;cursor:not-allowed;background:#f8fafc;}
+  .menu-item.disabled:hover{background:#f8fafc;color:#cbd5e1;}
+
+  .shift-DESCANSA{background:var(--mt-blue-dark);color:white;}
+  .shift-COMPENSA{background:var(--mt-green);color:white;}
+  .shift-DIA-FAMILIA{background:var(--mt-yellow);color:var(--slate-800);}
+  .shift-NOVEDAD{background:var(--mt-orange-bg);color:var(--mt-orange-text);}
+
+  td.comp-pend{background:var(--slate-50);padding:0;}
+  td.comp-pend input{width:100%;min-height:28px;padding:2px;text-align:center;font-weight:800;font-size:13px;background:transparent;border:none;outline:none;color:var(--slate-500);}
+  td.comp-pend input.warning{color:var(--mt-red);background:var(--mt-red-light);font-size:15px;}
+
+  /* OBSERVACIONES */
+  .obs-section{padding:18px 24px;background:linear-gradient(180deg,#fafbfd 0%,#f1f5f9 100%);border-top:1px solid var(--slate-200);}
+  .obs-label{font-size:12px;font-weight:800;letter-spacing:1.5px;color:var(--mt-blue-dark);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .obs-label::before{content:'📝';}
+  .obs-textarea{width:100%;min-height:90px;padding:12px 14px;border:2px solid var(--slate-200);border-radius:10px;font-family:inherit;font-size:14px;color:var(--slate-800);background:white;resize:vertical;line-height:1.5;}
+  .obs-textarea:focus{outline:none;border-color:var(--mt-blue-dark);box-shadow:0 0 0 3px rgba(0,43,94,.1);}
+  .obs-help{font-size:11px;color:var(--slate-500);margin-top:6px;font-style:italic;}
+
+  /* FOOTER */
+  .footer{background:linear-gradient(180deg,var(--slate-50) 0%,#eaeef3 100%);padding:16px 24px;border-top:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+  .legend{display:flex;align-items:center;gap:12px;font-size:11px;font-weight:700;color:var(--slate-600);}
+  .legend-label{text-transform:uppercase;letter-spacing:1.5px;}
+  .legend-items{display:flex;gap:8px;flex-wrap:wrap;}
+  .legend-chip{padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;}
+  .footer-note{font-size:11px;color:var(--slate-500);font-weight:500;}
+  .footer-note .red{color:var(--mt-red);font-weight:800;}
+  .clear-btn{background:white;color:var(--mt-red);border:1.5px solid transparent;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;}
+  .clear-btn:hover{background:var(--mt-red);color:white;border-color:var(--mt-red-dark);}
+
+  /* MODALES */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+  .modal-bg.on{display:flex;}
+  .modal{background:white;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,.4);}
+  .modal-hdr{background:linear-gradient(135deg,var(--mt-blue-dark) 0%,var(--mt-blue-light) 100%);color:white;padding:18px 24px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:relative;overflow:hidden;}
+  .modal-hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--mt-red);}
+  .modal-hdr h2{font-size:18px;font-weight:900;font-style:italic;letter-spacing:.5px;}
+  .modal-close{background:rgba(255,255,255,.15);border:none;color:white;width:32px;height:32px;border-radius:6px;font-size:18px;cursor:pointer;}
+  .modal-body{padding:24px;}
+
+  .pin-input{width:100%;padding:14px;font-size:24px;text-align:center;letter-spacing:8px;font-weight:900;border:2px solid var(--slate-200);border-radius:10px;font-family:'Courier New',monospace;color:var(--mt-blue-dark);}
+  .pin-input:focus{outline:none;border-color:var(--mt-blue-dark);}
+  .pin-error{color:var(--mt-red);font-size:13px;font-weight:700;margin-top:10px;text-align:center;display:none;}
+  .pin-error.show{display:block;}
+
+  .modal-btn{padding:12px 24px;border:none;border-radius:8px;font-weight:800;font-size:13px;letter-spacing:1px;cursor:pointer;text-transform:uppercase;}
+  .modal-btn-primary{background:var(--mt-blue-dark);color:white;}
+  .modal-btn-primary:hover{background:var(--mt-blue);}
+  .modal-btn-cancel{background:var(--slate-200);color:var(--slate-700);}
+
+  /* RESUMEN */
+  .resumen-summary{background:linear-gradient(135deg,#f1f5f9 0%,#e0e7ff 100%);border-radius:10px;padding:14px;margin-bottom:18px;border-left:4px solid var(--mt-red);}
+  .resumen-summary h3{font-size:13px;color:var(--mt-blue-dark);font-weight:800;margin-bottom:6px;letter-spacing:.5px;}
+  .resumen-summary .week-info{font-size:14px;color:var(--slate-700);font-weight:700;}
+  .resumen-summary .consol-status{font-size:11px;margin-top:6px;font-weight:600;}
+  .consol-status.ready{color:var(--mt-green);}
+  .consol-status.pending{color:var(--mt-orange-text);}
+
+  .resumen-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .resumen-table th{background:var(--mt-blue-dark);color:white;padding:10px 8px;text-align:left;font-size:11px;font-weight:800;letter-spacing:.5px;}
+  .resumen-table th:not(:first-child){text-align:center;}
+  .resumen-table td{padding:8px;border-bottom:1px solid var(--slate-100);font-size:12px;}
+  .resumen-table td:first-child{font-weight:700;color:var(--slate-800);}
+  .resumen-table td:not(:first-child){text-align:center;font-weight:800;}
+  .resumen-table tr:hover{background:var(--slate-50);}
+  .resumen-table .store-row{background:linear-gradient(90deg,#eff6ff 0%,white 100%);font-weight:900;color:var(--mt-blue-dark);font-size:11px;text-transform:uppercase;letter-spacing:1px;}
+  .num-cell{display:inline-block;min-width:24px;padding:3px 8px;border-radius:4px;font-weight:900;}
+  .num-work{background:#e0e7ff;color:var(--mt-blue-dark);}
+  .num-rest{background:rgba(0,43,94,.1);color:var(--mt-blue-dark);}
+  .num-sun{background:var(--mt-red-light);color:var(--mt-red);}
+  .num-fam{background:#fef9c3;color:#854d0e;}
+  .num-nov{background:var(--mt-orange-bg);color:var(--mt-orange-text);}
+
+  @media (max-width:768px){
+    body{padding:8px;}
+    .header{padding:16px;flex-direction:column;align-items:flex-start;}
+    .header-title h1{font-size:20px;}
+    .week-nav{padding:10px;flex-wrap:wrap;gap:8px;justify-content:center;}
+    .week-display{font-size:11px;padding:6px 16px;}
+    .footer{flex-direction:column;align-items:flex-start;}
+    .legend{flex-direction:column;align-items:flex-start;}
+    .resumen-table{font-size:11px;}
+    .resumen-table th,.resumen-table td{padding:6px 4px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="header-title">
+      <h1>HORARIOS ADMINISTRADORES</h1>
+      <span class="header-badge">MEGATIENDAS ATLÁNTICO</span>
+    </div>
+    <div class="header-right">
+      <button class="resumen-btn" onclick="openResumenModal()">📊 Resumen Semanal</button>
+      <div class="status-pill">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Conectando...</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="weekAlerts" class="week-alerts hidden"></div>
+
+  <div class="week-nav">
+    <button class="nav-btn" onclick="prevWeek()">← Anterior</button>
+    <div class="week-display" id="weekDisplay">--</div>
+    <button class="nav-btn" onclick="nextWeek()">Siguiente →</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="scheduleTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- OBSERVACIONES -->
+  <div class="obs-section">
+    <div class="obs-label">Observaciones de la semana</div>
+    <textarea class="obs-textarea" id="obsTextarea" placeholder="Notas operativas, novedades, instrucciones especiales para el equipo..."></textarea>
+    <div class="obs-help">Las observaciones se guardan automáticamente y son visibles para todos los administradores.</div>
+  </div>
+
+  <div class="footer">
+    <div class="legend">
+      <span class="legend-label">Leyenda:</span>
+      <div class="legend-items">
+        <span class="legend-chip" style="background:var(--mt-blue-dark);color:white;">DESCANSA</span>
+        <span class="legend-chip" style="background:var(--mt-green);color:white;">COMPENSA</span>
+        <span class="legend-chip" style="background:var(--mt-yellow);color:var(--slate-800);">FAMILIA</span>
+        <span class="legend-chip" style="background:var(--mt-orange-bg);color:var(--mt-orange-text);border:1px solid #fdba74;">NOVEDADES</span>
+        <span class="legend-chip" style="background:var(--mt-red);color:white;">DOMINGO / FESTIVO</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;">
+      <span class="footer-note">* Comp. Pend. ≥ 4 en <span class="red">rojo</span></span>
+      <button class="clear-btn" onclick="clearAll()">Borrar Datos</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Menú flotante de turnos -->
+<div id="shiftMenu" class="shift-menu hidden"></div>
+
+<!-- Modal PIN -->
+<div class="modal-bg" id="modalPin">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-hdr">
+      <h2>🔐 ACCESO RESTRINGIDO</h2>
+      <button class="modal-close" onclick="closeModalPin()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--slate-600);font-size:13px;margin-bottom:16px;text-align:center;">Ingresa tu código de acceso para ver el resumen semanal consolidado.</p>
+      <input type="password" class="pin-input" id="pinInput" maxlength="4" placeholder="••••" inputmode="numeric" onkeyup="pinKeyup(event)">
+      <div class="pin-error" id="pinError">❌ Código incorrecto</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModalPin()">Cancelar</button>
+        <button class="modal-btn modal-btn-primary" onclick="validatePin()">Acceder →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Resumen -->
+<div class="modal-bg" id="modalResumen">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2>📊 RESUMEN SEMANAL</h2>
+      <button class="modal-close" onclick="closeModalResumen()">×</button>
+    </div>
+    <div class="modal-body" id="resumenBody"></div>
+  </div>
+</div>
+
+<script>
+  // ===== CONFIGURACIÓN SUPABASE =====
+  const SUPABASE_URL='https://nilammwpyurhlqvrfwmb.supabase.co';
+  const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pbGFtbXdweXVyaGxxdnJmd21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2MzIwMTIsImV4cCI6MjA5MjIwODAxMn0.mjzCDih22bWM4MbiSg5TEztV6Xm6Uh2eA6a_QBSbb2k';
+
+  // ===== DATOS BASE =====
+  const STORES=[
+    {id:'unico',name:'ÚNICO',principal:'ZEUDY OTERO',comercial:'MANUEL CORTINA'},
+    {id:'calle-30',name:'CALLE 30',principal:'ROSNY MAURY',comercial:'RONALD MONTAÑO'},
+    {id:'soledad',name:'SOLEDAD',principal:'DORLIES MARCHENA',comercial:'ALEXANDER BRICEÑO'},
+    {id:'santo-tomas',name:'SANTO TOMÁS',principal:'SANDRA SALGADO',comercial:'ROBYN MERCADO'},
+    {id:'nuestro',name:'NUESTRO ATLÁNTICO',principal:'MAURICIO ESCORCIA',comercial:'MILLER OROZCO'},
+    {id:'alkarawi',name:'ALKARAWI',principal:'LEONOR RODRIGUEZ',comercial:'GENNY HOYOS'},
+    {id:'boston',name:'BOSTON',principal:'JULIANA CHARRIS',comercial:'JULIO CESAR MARTINEZ'},
+    {id:'villa-campestre',name:'VILLA CAMPESTRE',principal:'ROSA PALLARES',comercial:'JOSE MEDELLIN'}
+  ];
+
+  const ALL_SHIFT_OPTIONS=['APERTURA','CIERRE','PARTIDO','COMPENSA','DESCANSA','DÍA DE LA FAMILIA','PERMISO','INCAPACIDAD','VACACIONES'];
+  const NON_WORK_VALUES=['DESCANSA','COMPENSA','DÍA DE LA FAMILIA','PERMISO','INCAPACIDAD','VACACIONES'];
+  const FAMILIA_END_DATE=new Date(2026,5,15); // 15 de junio 2026
+
+  const MONTHS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const MONTHS_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DAY_NAMES=['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+
+  const PIN_RESUMEN='1972';
+
+  // ===== FESTIVOS COLOMBIANOS 2026 =====
+  // Lista oficial fija (ya considera traslados a lunes para los Emiliani)
+  const FESTIVOS_2026=[
+    {date:'2026-1-1',name:'Año Nuevo'},
+    {date:'2026-1-12',name:'Reyes Magos'},
+    {date:'2026-3-23',name:'Día de San José'},
+    {date:'2026-4-2',name:'Jueves Santo'},
+    {date:'2026-4-3',name:'Viernes Santo'},
+    {date:'2026-5-1',name:'Día del Trabajo'},
+    {date:'2026-5-18',name:'Día de la Ascensión'},
+    {date:'2026-6-8',name:'Corpus Christi'},
+    {date:'2026-6-15',name:'Sagrado Corazón'},
+    {date:'2026-6-29',name:'San Pedro y San Pablo'},
+    {date:'2026-7-20',name:'Día de la Independencia'},
+    {date:'2026-8-7',name:'Batalla de Boyacá'},
+    {date:'2026-8-17',name:'Asunción de la Virgen'},
+    {date:'2026-10-12',name:'Día de la Raza'},
+    {date:'2026-11-2',name:'Día de Todos los Santos'},
+    {date:'2026-11-16',name:'Independencia de Cartagena'},
+    {date:'2026-12-8',name:'Día de la Inmaculada'},
+    {date:'2026-12-25',name:'Navidad'}
+  ];
+  // Diccionario rápido
+  const FESTIVOS_MAP={};
+  FESTIVOS_2026.forEach(f=>{FESTIVOS_MAP[f.date]=f.name;});
+
+  const STORAGE_KEY='megatiendas:horarios-admin:main';
+
+  // ===== ESTADO =====
+  let currentStartDate=startOfWeek(new Date());
+  let schedule={};
+  let compPend={};
+  let observaciones='';
+  let saveTimer=null;
+  let obsSaveTimer=null;
+  let isSaving=false;
+  let db=null;
+  let isOnlineMode=false;
+
+  // ===== UTILIDADES DE FECHA =====
+  function startOfWeek(d){
+    const day=d.getDay();
+    const diff=day===0?-6:1-day; // siempre lunes
+    const m=new Date(d.getFullYear(),d.getMonth(),d.getDate()+diff);
+    return m;
+  }
+  function fmtKey(d){return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;}
+  function isHoliday(dateKey){return !!FESTIVOS_MAP[dateKey];}
+  function holidayName(dateKey){return FESTIVOS_MAP[dateKey]||'';}
+  function isAfterFamiliaEnd(d){
+    return d>FAMILIA_END_DATE;
+  }
+
+  // ===== INICIALIZACIÓN BD =====
+  function initDatabase(){
+    const ok=!SUPABASE_URL.includes('TU-PROYECTO')&&!SUPABASE_ANON_KEY.includes('TU-')&&SUPABASE_URL.startsWith('https://')&&SUPABASE_ANON_KEY.length>20;
+    if(!ok){
+      setStatus('offline');
+      isOnlineMode=false;
+      render();
+      return;
+    }
+    try{
+      db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+      isOnlineMode=true;
+      loadFromSupabase();
+    }catch(e){
+      console.error('Error Supabase:',e);
+      setStatus('offline');
+      isOnlineMode=false;
+      render();
+    }
+  }
+
+  function setStatus(state){
+    const dot=document.getElementById('statusDot');
+    const text=document.getElementById('statusText');
+    dot.className='status-dot';
+    if(state==='saving'){dot.classList.add('saving');text.textContent='Sincronizando...';}
+    else if(state==='loading'){dot.classList.add('saving');text.textContent='Cargando datos...';}
+    else if(state==='offline'){dot.classList.add('offline');text.textContent='Sin conexión';}
+    else{text.textContent='En línea';}
+  }
+
+  async function loadFromSupabase(){
+    setStatus('loading');
+    try{
+      const [cellsRes,compRes,obsRes]=await Promise.all([
+        db.from('horarios_celdas').select('*'),
+        db.from('horarios_comp').select('*'),
+        db.from('horarios_obs').select('*').eq('id','main').maybeSingle()
+      ]);
+      schedule={};
+      if(cellsRes.data){
+        cellsRes.data.forEach(c=>{schedule[`${c.tienda_id}-${c.cargo}-${c.fecha_key}`]=c.valor;});
+      }
+      compPend={};
+      if(compRes.data){
+        compRes.data.forEach(c=>{compPend[`${c.tienda_id}-${c.cargo}`]=c.valor;});
+      }
+      if(obsRes&&obsRes.data){observaciones=obsRes.data.texto||'';}
+      setStatus('online');
+      render();
+      subscribeToChanges();
+    }catch(e){
+      console.error('Error cargando:',e);
+      setStatus('offline');
+      render();
+    }
+  }
+
+  function subscribeToChanges(){
+    db.channel('horarios-realtime')
+      .on('postgres_changes',{event:'*',schema:'public',table:'horarios_celdas'},(payload)=>{
+        if(payload.eventType==='DELETE'){
+          const o=payload.old;
+          delete schedule[`${o.tienda_id}-${o.cargo}-${o.fecha_key}`];
+        }else{
+          const r=payload.new;
+          schedule[`${r.tienda_id}-${r.cargo}-${r.fecha_key}`]=r.valor;
+        }
+        render();
+      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'horarios_comp'},(payload)=>{
+        if(payload.eventType==='DELETE'){
+          const o=payload.old;
+          delete compPend[`${o.tienda_id}-${o.cargo}`];
+        }else{
+          const r=payload.new;
+          compPend[`${r.tienda_id}-${r.cargo}`]=r.valor;
+        }
+        render();
+      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'horarios_obs'},(payload)=>{
+        if(payload.new&&payload.new.id==='main'){
+          observaciones=payload.new.texto||'';
+          const ta=document.getElementById('obsTextarea');
+          if(ta&&document.activeElement!==ta)ta.value=observaciones;
+        }
+      })
+      .subscribe();
+  }
+
+  // ===== ESCRITURA =====
+  async function persistShiftCell(storeId,role,dateKey,value){
+    if(!isOnlineMode)return;
+    setStatus('saving');
+    const id=`${storeId}-${role}-${dateKey}`;
+    try{
+      if(!value||value.trim()===''){
+        await db.from('horarios_celdas').delete().eq('id',id);
+      }else{
+        await db.from('horarios_celdas').upsert({
+          id,tienda_id:storeId,cargo:role,fecha_key:dateKey,valor:value,
+          updated_at:new Date().toISOString()
+        });
+      }
+      setStatus('online');
+    }catch(e){console.error('save shift:',e);setStatus('offline');}
+  }
+
+  async function persistComp(storeId,role,value){
+    if(!isOnlineMode)return;
+    setStatus('saving');
+    const id=`${storeId}-${role}`;
+    try{
+      if(!value||value===''){
+        await db.from('horarios_comp').delete().eq('id',id);
+      }else{
+        await db.from('horarios_comp').upsert({
+          id,tienda_id:storeId,cargo:role,valor:parseInt(value,10),
+          updated_at:new Date().toISOString()
+        });
+      }
+      setStatus('online');
+    }catch(e){console.error('save comp:',e);setStatus('offline');}
+  }
+
+  async function persistObs(){
+    if(!isOnlineMode)return;
+    setStatus('saving');
+    try{
+      await db.from('horarios_obs').upsert({id:'main',texto:observaciones,updated_at:new Date().toISOString()});
+      setStatus('online');
+    }catch(e){console.error('save obs:',e);setStatus('offline');}
+  }
+
+  // ===== VALIDACIONES DE COBERTURA =====
+  // Cuenta cuántas celdas (entre todas las tiendas/cargos) tienen cierto valor en cierto día
+  function countShiftOnDay(value,dateKey){
+    let n=0;
+    STORES.forEach(s=>{
+      ['principal','comercial'].forEach(role=>{
+        if(schedule[`${s.id}-${role}-${dateKey}`]===value)n++;
+      });
+    });
+    return n;
+  }
+
+  // Devuelve mensaje de error si la asignación viola las reglas, o null si está OK
+  // Excluye la celda actual (storeId, role, dateKey) del conteo para permitir CAMBIAR su propio valor
+  function checkRule(storeId,role,dateKey,newValue){
+    const d=parseDateKey(dateKey);
+    const dow=d.getDay(); // 0=DOM 6=SÁB
+
+    // Día de la Familia bloqueado después del 15-jun
+    if(newValue==='DÍA DE LA FAMILIA'&&isAfterFamiliaEnd(d)){
+      return '⚠️ DÍA DE LA FAMILIA no disponible después del 15 de junio';
+    }
+
+    // Sábado: máx 2 DESCANSA, máx 1 DÍA DE LA FAMILIA
+    // Resto de días: el domingo no tiene límite de FAMILIA, los demás máx 2 (esta es la regla "más de 2 los demas dias" interpretada)
+    // Para descansa: solo se restringe sábado (otros días sin límite)
+
+    if(newValue==='DESCANSA'&&dow===6){
+      const others=countShiftOnDayExcept(newValue,dateKey,storeId,role);
+      if(others>=2)return '⚠️ Sábado: máximo 2 administradores en DESCANSA';
+    }
+    if(newValue==='DÍA DE LA FAMILIA'&&dow===6){
+      const others=countShiftOnDayExcept(newValue,dateKey,storeId,role);
+      if(others>=1)return '⚠️ Sábado: máximo 1 administrador en DÍA DE LA FAMILIA';
+    }
+    return null;
+  }
+
+  function countShiftOnDayExcept(value,dateKey,exStore,exRole){
+    let n=0;
+    STORES.forEach(s=>{
+      ['principal','comercial'].forEach(role=>{
+        if(s.id===exStore&&role===exRole)return;
+        if(schedule[`${s.id}-${role}-${dateKey}`]===value)n++;
+      });
+    });
+    return n;
+  }
+
+  function parseDateKey(dateKey){
+    const [y,m,d]=dateKey.split('-').map(n=>parseInt(n,10));
+    return new Date(y,m-1,d);
+  }
+
+  // ===== HANDLERS =====
+  function handleShiftChange(storeId,role,dateKey,value){
+    const upperValue=(value||'').toUpperCase();
+
+    // Validación de reglas si hay valor
+    if(upperValue&&NON_WORK_VALUES.includes(upperValue)){
+      const err=checkRule(storeId,role,dateKey,upperValue);
+      if(err){
+        showToast(err,'error');
+        // Revertir UI: re-renderizar para borrar lo que se escribió
+        render();
+        return;
+      }
+    }
+    // También validar Día de la Familia escrito a mano
+    if(upperValue==='DÍA DE LA FAMILIA'){
+      const d=parseDateKey(dateKey);
+      if(isAfterFamiliaEnd(d)){
+        showToast('⚠️ DÍA DE LA FAMILIA no disponible después del 15 de junio','error');
+        render();
+        return;
+      }
+    }
+
+    schedule[`${storeId}-${role}-${dateKey}`]=upperValue;
+    if(!upperValue)delete schedule[`${storeId}-${role}-${dateKey}`];
+    persistShiftCell(storeId,role,dateKey,upperValue);
+    render();
+  }
+
+  function handleCompChange(storeId,role,value){
+    const id=`${storeId}-${role}`;
+    compPend[id]=value;
+    updateCompCellStyle(storeId,role,value);
+    if(saveTimer)clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>{persistComp(storeId,role,value);},700);
+  }
+
+  function updateCompCellStyle(storeId,role,value){
+    const input=document.getElementById(`comp-${storeId}-${role}`);
+    if(!input)return;
+    const num=parseInt(value||0,10);
+    if(num>=4)input.classList.add('warning');
+    else input.classList.remove('warning');
+  }
+
+  function handleObsChange(value){
+    observaciones=value;
+    if(obsSaveTimer)clearTimeout(obsSaveTimer);
+    obsSaveTimer=setTimeout(persistObs,1000);
+  }
+
+  async function clearAll(){
+    if(!confirm('¿Borrar TODA la tabla? Esto eliminará los datos para todos los administradores.'))return;
+    schedule={};
+    compPend={};
+    observaciones='';
+    if(isOnlineMode){
+      setStatus('saving');
+      try{
+        await db.from('horarios_celdas').delete().neq('id','__none__');
+        await db.from('horarios_comp').delete().neq('id','__none__');
+        await db.from('horarios_obs').delete().neq('id','__none__');
+        setStatus('online');
+      }catch(e){console.error('clear:',e);setStatus('offline');}
+    }
+    render();
+  }
+
+  function prevWeek(){
+    currentStartDate=new Date(currentStartDate.getFullYear(),currentStartDate.getMonth(),currentStartDate.getDate()-7);
+    render();
+  }
+  function nextWeek(){
+    currentStartDate=new Date(currentStartDate.getFullYear(),currentStartDate.getMonth(),currentStartDate.getDate()+7);
+    render();
+  }
+
+  // ===== TOAST =====
+  function showToast(msg,type){
+    let el=document.getElementById('toast');
+    if(!el){
+      el=document.createElement('div');
+      el.id='toast';
+      el.style.cssText='position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--mt-blue-dark);color:white;padding:14px 24px;border-radius:10px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);z-index:5000;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center;';
+      document.body.appendChild(el);
+    }
+    if(type==='error')el.style.background='var(--mt-red)';
+    else el.style.background='var(--mt-blue-dark)';
+    el.textContent=msg;
+    el.style.opacity='1';
+    clearTimeout(el._t);
+    el._t=setTimeout(()=>{el.style.opacity='0';},3000);
+  }
+
+  // ===== RENDER =====
+  function getWeekData(){
+    const days=[];
+    const end=new Date(currentStartDate);
+    end.setDate(currentStartDate.getDate()+6);
+    for(let i=0;i<7;i++){
+      const d=new Date(currentStartDate);
+      d.setDate(currentStartDate.getDate()+i);
+      const dateKey=fmtKey(d);
+      days.push({
+        name:`${DAY_NAMES[d.getDay()]} ${d.getDate()}`,
+        isSunday:d.getDay()===0,
+        isHoliday:isHoliday(dateKey),
+        holidayName:holidayName(dateKey),
+        date:d,
+        dayOfMonth:d.getDate(),
+        dateKey
+      });
+    }
+    const headerString=`${currentStartDate.getDate()} ${MONTHS[currentStartDate.getMonth()]} — ${end.getDate()} ${MONTHS[end.getMonth()]} ${end.getFullYear()}`;
+    return {days,headerString};
+  }
+
+  function renderAlerts(days){
+    const alerts=[];
+    days.forEach(d=>{
+      if(d.isHoliday){
+        alerts.push(`<span class="alert-icon">🇨🇴 <strong>${DAY_NAMES[d.date.getDay()]} ${d.dayOfMonth}:</strong> ${d.holidayName} (festivo)</span>`);
+      }
+    });
+    const wrap=document.getElementById('weekAlerts');
+    if(alerts.length){
+      wrap.innerHTML=alerts.join('');
+      wrap.classList.remove('hidden');
+    }else{
+      wrap.classList.add('hidden');
+    }
+  }
+
+  function getShiftClass(value){
+    if(value==='DESCANSA')return 'shift-DESCANSA';
+    if(value==='COMPENSA')return 'shift-COMPENSA';
+    if(value==='DÍA DE LA FAMILIA')return 'shift-DIA-FAMILIA';
+    if(['PERMISO','INCAPACIDAD','VACACIONES'].includes(value))return 'shift-NOVEDAD';
+    return '';
+  }
+
+  function buildShiftCell(storeId,role,dateKey,currentValue){
+    const cls=getShiftClass(currentValue);
+    const safeValue=(currentValue||'').replace(/"/g,'&quot;');
+    return `<td class="shift-cell ${cls}">
+      <input type="text" value="${safeValue}" placeholder="—"
+             onfocus="showShiftMenu(this,'${storeId}','${role}','${dateKey}')"
+             onclick="showShiftMenu(this,'${storeId}','${role}','${dateKey}')"
+             onchange="handleShiftChange('${storeId}','${role}','${dateKey}',this.value.toUpperCase())"
+             onblur="this.value=this.value.toUpperCase()">
+    </td>`;
+  }
+
+  function showShiftMenu(inputEl,storeId,role,dateKey){
+    const menu=document.getElementById('shiftMenu');
+    const d=parseDateKey(dateKey);
+    const dow=d.getDay();
+    const familiaDisabled=isAfterFamiliaEnd(d);
+
+    let html=`<div class="menu-item menu-clear" data-value="">— Limpiar —</div>`;
+    ALL_SHIFT_OPTIONS.forEach(opt=>{
+      let disabled=false;
+      let reason='';
+
+      // Día de la Familia eliminada después del 15-jun
+      if(opt==='DÍA DE LA FAMILIA'&&familiaDisabled){
+        return; // ni siquiera la mostramos
+      }
+
+      // Validar cobertura para opciones críticas en sábado
+      if(opt==='DESCANSA'&&dow===6){
+        const c=countShiftOnDayExcept('DESCANSA',dateKey,storeId,role);
+        if(c>=2){disabled=true;reason='(máx 2 sábado)';}
+      }
+      if(opt==='DÍA DE LA FAMILIA'&&dow===6){
+        const c=countShiftOnDayExcept('DÍA DE LA FAMILIA',dateKey,storeId,role);
+        if(c>=1){disabled=true;reason='(máx 1 sábado)';}
+      }
+
+      html+=`<div class="menu-item${disabled?' disabled':''}" data-value="${disabled?'':opt}">
+        ${opt}${disabled?' '+reason:''}
+      </div>`;
+    });
+    menu.innerHTML=html;
+
+    const rect=inputEl.getBoundingClientRect();
+    menu.style.minWidth=Math.max(rect.width,160)+'px';
+    menu.classList.remove('hidden');
+
+    const menuHeight=menu.offsetHeight;
+    if(rect.bottom+menuHeight+8>window.innerHeight){
+      menu.style.top=(rect.top-menuHeight-4)+'px';
+    }else{
+      menu.style.top=(rect.bottom+4)+'px';
+    }
+    menu.style.left=rect.left+'px';
+
+    menu.querySelectorAll('.menu-item').forEach(item=>{
+      if(item.classList.contains('disabled'))return;
+      item.onmousedown=(e)=>{
+        e.preventDefault();
+        const value=item.dataset.value||'';
+        inputEl.value=value;
+        handleShiftChange(storeId,role,dateKey,value);
+        menu.classList.add('hidden');
+        inputEl.blur();
+      };
+    });
+  }
+
+  document.addEventListener('mousedown',(e)=>{
+    if(!e.target.closest('.shift-cell')&&!e.target.closest('#shiftMenu')){
+      document.getElementById('shiftMenu').classList.add('hidden');
+    }
+  });
+  window.addEventListener('scroll',()=>{
+    document.getElementById('shiftMenu').classList.add('hidden');
+  },true);
+
+  function render(){
+    const {days,headerString}=getWeekData();
+    document.getElementById('weekDisplay').textContent=headerString;
+    renderAlerts(days);
+
+    let headHtml=`<tr>
+      <th style="width:11%;">TIENDA</th>
+      <th style="width:7%;">CARGO</th>
+      <th style="width:11%;">NOMBRE</th>`;
+    days.forEach(d=>{
+      let cls='';
+      let extraTitle='';
+      if(d.isHoliday){cls='holiday-header';extraTitle=` title="${d.holidayName}"`;}
+      else if(d.isSunday){cls='sunday-header';}
+      headHtml+=`<th class="${cls}" style="width:8%;"${extraTitle}>${d.name}${d.isHoliday?' 🇨🇴':''}</th>`;
+    });
+    headHtml+=`<th class="comp-pend-header" style="width:5%;">COMP.<br>PEND.</th></tr>`;
+    document.getElementById('tableHead').innerHTML=headHtml;
+
+    let bodyHtml='';
+    STORES.forEach(store=>{
+      bodyHtml+=`<tr class="row-principal">
+        <td rowspan="2" class="store-name">${store.name}</td>
+        <td class="role-label principal">PRINCIPAL</td>
+        <td class="person-name">${store.principal}</td>`;
+      days.forEach(d=>{
+        const key=`${store.id}-principal-${d.dateKey}`;
+        bodyHtml+=buildShiftCell(store.id,'principal',d.dateKey,schedule[key]||'');
+      });
+      const cpP=compPend[`${store.id}-principal`]||'';
+      const wpP=(parseInt(cpP||0,10)>=4)?'warning':'';
+      bodyHtml+=`<td class="comp-pend">
+        <input type="number" min="0" id="comp-${store.id}-principal" value="${cpP}" placeholder="0"
+               class="${wpP}"
+               oninput="handleCompChange('${store.id}','principal',this.value)">
+      </td></tr>`;
+
+      bodyHtml+=`<tr>
+        <td class="role-label comercial">COMERCIAL</td>
+        <td class="person-name">${store.comercial}</td>`;
+      days.forEach(d=>{
+        const key=`${store.id}-comercial-${d.dateKey}`;
+        bodyHtml+=buildShiftCell(store.id,'comercial',d.dateKey,schedule[key]||'');
+      });
+      const cpC=compPend[`${store.id}-comercial`]||'';
+      const wpC=(parseInt(cpC||0,10)>=4)?'warning':'';
+      bodyHtml+=`<td class="comp-pend">
+        <input type="number" min="0" id="comp-${store.id}-comercial" value="${cpC}" placeholder="0"
+               class="${wpC}"
+               oninput="handleCompChange('${store.id}','comercial',this.value)">
+      </td></tr>`;
+    });
+    document.getElementById('tableBody').innerHTML=bodyHtml;
+
+    // Sincronizar textarea de observaciones (sin pisar lo que el usuario está escribiendo)
+    const ta=document.getElementById('obsTextarea');
+    if(ta&&document.activeElement!==ta){ta.value=observaciones;}
+  }
+
+  // ===== MODAL PIN =====
+  function openResumenModal(){
+    document.getElementById('pinInput').value='';
+    document.getElementById('pinError').classList.remove('show');
+    document.getElementById('modalPin').classList.add('on');
+    setTimeout(()=>document.getElementById('pinInput').focus(),100);
+  }
+  function closeModalPin(){
+    document.getElementById('modalPin').classList.remove('on');
+  }
+  function pinKeyup(e){
+    if(e.key==='Enter')validatePin();
+  }
+  function validatePin(){
+    const v=document.getElementById('pinInput').value;
+    if(v===PIN_RESUMEN){
+      closeModalPin();
+      showResumen();
+    }else{
+      document.getElementById('pinError').classList.add('show');
+      document.getElementById('pinInput').value='';
+      document.getElementById('pinInput').focus();
+    }
+  }
+
+  // ===== RESUMEN SEMANAL =====
+  // Analiza la SEMANA ANTERIOR (lunes a domingo) — el lunes después de 2pm queda consolidada
+  function showResumen(){
+    // Calcular semana anterior (lunes a domingo) basada en HOY
+    const today=new Date();
+    const startThisWeek=startOfWeek(today);
+    const startPrevWeek=new Date(startThisWeek);
+    startPrevWeek.setDate(startThisWeek.getDate()-7);
+    const endPrevWeek=new Date(startPrevWeek);
+    endPrevWeek.setDate(startPrevWeek.getDate()+6);
+
+    // Estado de consolidación
+    const dow=today.getDay();
+    const hour=today.getHours();
+    const isConsolidated=(dow>1)||(dow===1&&hour>=14);
+    const consolStatus=isConsolidated
+      ?'<span class="consol-status ready">✓ Semana consolidada · Datos definitivos para revisión</span>'
+      :'<span class="consol-status pending">⏱ Pendiente de consolidación · Lunes a las 2:00 PM</span>';
+
+    // Recolectar días de la semana anterior
+    const days=[];
+    for(let i=0;i<7;i++){
+      const d=new Date(startPrevWeek);
+      d.setDate(startPrevWeek.getDate()+i);
+      const key=fmtKey(d);
+      days.push({date:d,key,isSunday:d.getDay()===0,isHoliday:isHoliday(key)});
+    }
+
+    // Calcular totales por persona
+    const rows=[];
+    STORES.forEach(store=>{
+      ['principal','comercial'].forEach(role=>{
+        const name=role==='principal'?store.principal:store.comercial;
+        let work=0,rest=0,sun=0,fam=0,nov=0;
+        days.forEach(d=>{
+          const v=schedule[`${store.id}-${role}-${d.key}`]||'';
+          const isSpecial=d.isSunday||d.isHoliday;
+          // Es turno trabajado si NO está en la lista de no-trabajo (incluye texto custom y vacío)
+          // Pero vacío no se cuenta como trabajado tampoco
+          if(v&&!NON_WORK_VALUES.includes(v)){
+            work++;
+            if(isSpecial)sun++;
+          }
+          if(v==='DESCANSA')rest++;
+          if(v==='DÍA DE LA FAMILIA')fam++;
+          if(['PERMISO','INCAPACIDAD','VACACIONES'].includes(v))nov++;
+        });
+        rows.push({store:store.name,storeId:store.id,role,name,work,rest,sun,fam,nov});
+      });
+    });
+
+    // Construir HTML
+    const weekStr=`${startPrevWeek.getDate()} ${MONTHS[startPrevWeek.getMonth()]} — ${endPrevWeek.getDate()} ${MONTHS[endPrevWeek.getMonth()]} ${endPrevWeek.getFullYear()}`;
+
+    let tableRows='';
+    let lastStoreId=null;
+    rows.forEach(r=>{
+      if(r.storeId!==lastStoreId){
+        tableRows+=`<tr class="store-row"><td colspan="6">🏪 ${r.store}</td></tr>`;
+        lastStoreId=r.storeId;
+      }
+      tableRows+=`<tr>
+        <td>${r.role==='principal'?'👤':'💼'} ${r.name}<br><span style="font-size:10px;color:var(--slate-500);font-weight:600;">${r.role.toUpperCase()}</span></td>
+        <td><span class="num-cell num-work">${r.work}</span></td>
+        <td><span class="num-cell num-rest">${r.rest}</span></td>
+        <td><span class="num-cell num-sun">${r.sun}</span></td>
+        <td><span class="num-cell num-fam">${r.fam}</span></td>
+        <td><span class="num-cell num-nov">${r.nov}</span></td>
+      </tr>`;
+    });
+
+    // Totales globales
+    const totWork=rows.reduce((a,r)=>a+r.work,0);
+    const totRest=rows.reduce((a,r)=>a+r.rest,0);
+    const totSun=rows.reduce((a,r)=>a+r.sun,0);
+    const totFam=rows.reduce((a,r)=>a+r.fam,0);
+    const totNov=rows.reduce((a,r)=>a+r.nov,0);
+
+    const html=`
+      <div class="resumen-summary">
+        <h3>SEMANA ANTERIOR ANALIZADA</h3>
+        <div class="week-info">${weekStr}</div>
+        ${consolStatus}
+      </div>
+
+      <div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:8px;">
+        <table class="resumen-table">
+          <thead>
+            <tr>
+              <th>Administrador</th>
+              <th title="Días con turno asignado">Días<br>Trabajados</th>
+              <th title="Días marcados como DESCANSA">Descansos</th>
+              <th title="Domingos y festivos trabajados">Dom/<br>Festivos</th>
+              <th title="Días de la Familia">Familia</th>
+              <th title="Permisos, incapacidades, vacaciones">Novedades</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+            <tr style="background:var(--mt-blue-dark);color:white;font-weight:900;">
+              <td style="color:white;">TOTAL REGIONAL</td>
+              <td><span class="num-cell" style="background:white;color:var(--mt-blue-dark);">${totWork}</span></td>
+              <td><span class="num-cell" style="background:white;color:var(--mt-blue-dark);">${totRest}</span></td>
+              <td><span class="num-cell" style="background:white;color:var(--mt-red);">${totSun}</span></td>
+              <td><span class="num-cell" style="background:white;color:#854d0e;">${totFam}</span></td>
+              <td><span class="num-cell" style="background:white;color:var(--mt-orange-text);">${totNov}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:18px;padding:12px;background:var(--slate-50);border-radius:8px;font-size:12px;color:var(--slate-600);line-height:1.6;">
+        <strong style="color:var(--mt-blue-dark);">📌 Notas:</strong><br>
+        • <strong>Días Trabajados:</strong> incluye APERTURA, CIERRE, PARTIDO y cualquier turno operativo.<br>
+        • <strong>Dom/Festivos:</strong> domingos y festivos colombianos en los que el administrador estuvo trabajando.<br>
+        • <strong>Consolidación:</strong> los lunes después de las 2:00 PM la semana anterior queda lista para revisión.<br>
+        • Si hay novedades o cambios, edítelas en la tabla principal — el resumen se actualiza al instante.
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModalResumen()">Cerrar</button>
+        <button class="modal-btn modal-btn-primary" onclick="window.print()">🖨 Imprimir</button>
+      </div>
+    `;
+
+    document.getElementById('resumenBody').innerHTML=html;
+    document.getElementById('modalResumen').classList.add('on');
+  }
+
+  function closeModalResumen(){
+    document.getElementById('modalResumen').classList.remove('on');
+  }
+
+  // ===== INIT =====
+  document.getElementById('obsTextarea').addEventListener('input',(e)=>{
+    handleObsChange(e.target.value);
+  });
+
+  initDatabase();
+</script>
+
+</body>
+</html>
